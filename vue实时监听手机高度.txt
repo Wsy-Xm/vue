@@ -1,0 +1,27 @@
+data(){
+        docmHeight: document.documentElement.clientHeight,  //默认屏幕高度
+        showHeight: document.documentElement.clientHeight,   //实时屏幕高度
+        hidshow: true,  //显示或者隐藏footer, 
+}   
+ 
+<!--把window.onresize事件挂在到mounted函数上-->
+mounted(){
+  window.onresize = () => {
+    return (() => {
+      window.fullHeight = document.documentElement.clientHeight;
+      that.showHeight = window.fullHeight;
+    })()
+  };
+}
+<!--在watch中监听实时高度-->
+watch: {
+  showHeight (val) {
+    let that = this;
+    that.show2 = true;
+    if (that.docmHeight > val){
+      that.hidshow = false;
+    } else{
+      that.hidshow = true;
+    }
+  }
+},
