@@ -1,0 +1,72 @@
+ // 图片上传图片校验
+            beforeAvatarUpload(file) {
+                if (this.form.bannerShapeCode === 0) {
+                    if (file.type !== 'image/jpeg' && file.type !== 'image/png') {
+                        this.$message.error('上传图片格式不对!');
+                        return
+                    }
+                } else {
+                    const _width = this.clippingData.width;
+                    const _height = this.clippingData.height;
+                    const isSize = new Promise(function (resolve, reject) {
+                        const _url = URL.createObjectURL(file);
+                        const img = new Image();
+                        if (1) { // 是否判断宽高
+                            img.onload = function () {
+                                const width = img.width === _width;
+                                const height = img.height === _height;
+                                if (width && height) {
+                                    resolve()
+                                } else {
+                                    reject()
+                                }
+                            }
+                        } else {
+                            resolve()
+                        }
+                        img.src = _url
+                    }).then(() => {
+                        return true
+                    }, () => {
+                        this.$message.error('上传的尺寸必须是宽:' + _width + 'px 高:' + _height + 'px')
+                        return Promise.reject()
+                    });
+                    return isSize
+                }
+   },
+
+
+
+
+ // 视频校验
+            videoBeforeUpload(file) {
+
+                // let _URL = window.URL || window.webkitURL;
+                const _width = this.clippingData.width;
+                const _height = this.clippingData.height;
+                const isSize = new Promise(function (resolve, reject) {
+                    const _url = URL.createObjectURL(file);
+                    let videoElement = document.createElement('video')
+                    if (1) { // 是否判断宽高
+                        img.onload = function () {
+                            const width = videoElement.videoWidth === _width;
+                            const height = videoElement.videoHeight === _height;
+                            if (width && height) {
+                                resolve()
+                            } else {
+                                reject()
+                            }
+                        }
+                    } else {
+                        resolve()
+                    }
+                    img.src = _url
+                }).then(() => {
+                    return true
+                }, () => {
+                    this.$message.error('上传的尺寸必须是宽:' + _width + 'px 高:' + _height + 'px')
+                    return Promise.reject()
+                });
+                return isSize
+}
+
