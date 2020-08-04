@@ -1,0 +1,1165 @@
+<template>
+  <div class="journalism-list">
+    <!-- 面包屑导航 -->
+    <el-breadcrumb separator-class="el-icon-arrow-right">
+      <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
+      <el-breadcrumb-item>新闻列表</el-breadcrumb-item>
+    </el-breadcrumb>
+
+    <!-- 搜索筛选 -->
+    <div class="head-box">
+      <el-form :inline="true" :model="searchForm" class="user-search">
+        <el-form-item label="搜索：">
+          <el-input size="small" clearable placeholder="新闻标题" v-model="searchForm.title"></el-input>
+        </el-form-item>
+        <el-form-item prop="region">
+          <el-select size="small" clearable v-model="searchForm.type" placeholder="新闻类型">
+            <el-option label="新闻" value="0"></el-option>
+            <el-option label="视频" value="1"></el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item prop="region">
+          <el-select size="small" clearable v-model="searchForm.status" placeholder="新闻状态">
+            <el-option label="新建" value="0"></el-option>
+            <el-option label="未审核" value="1"></el-option>
+            <el-option label="已审核" value="2"></el-option>
+            <el-option label="发布" value="3"></el-option>
+            <el-option label="删除" value="4"></el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item prop="region">
+          <el-select size="small" clearable v-model="searchForm.banner" placeholder="是否轮播">
+            <el-option label="否" value="0"></el-option>
+            <el-option label="是" value="1"></el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item>
+          <el-input size="small" clearable placeholder="创建人" v-model="searchForm.createBy"></el-input>
+        </el-form-item>
+        <el-form-item>
+          <el-button size="small" type="primary" icon="el-icon-search" @click="searchClick">搜索</el-button>
+          <el-button size="small" type="primary" icon="el-icon-refresh-left" @click="getJournalismList">重置</el-button>
+        </el-form-item>
+      </el-form>
+      <el-form :inline="true" class="user-search" v-has="'admin:news:add'">
+        <el-dropdown>
+          <el-form-item>
+            <el-button type="primary">
+              新建<i class="el-icon-arrow-down el-icon--right"></i>
+            </el-button>
+          </el-form-item>
+          <el-dropdown-menu slot="dropdown">
+            <el-dropdown-item @click.native="videoNews(0)">新闻</el-dropdown-item>
+            <el-dropdown-item @click.native="videoNews(2)">视频</el-dropdown-item>
+          </el-dropdown-menu>
+        </el-dropdown>
+      </el-form>
+    </div>
+
+    <!--列表-->
+    <el-table size="small" :data="journalismList" highlight-current-row v-loading="loading" border
+              element-loading-text="拼命加载中" style="width: 100%;"
+              @filter-change="filterChange">
+      <el-table-column label="ID" align="center" type="index" width="60">
+      </el-table-column>
+      <el-table-column label="封面图" show-overflow-tooltip width="100" header-align="center" align="center">
+        <template slot-scope="scope">
+          <el-image
+            @click="blowup(scope.row)"
+            style="width: 100%; height: 100%"
+            :src="scope.row.coverImg === null ?'':scope.row.coverImg.content[0].url"
+            :preview-src-list="srcList">
+          </el-image>
+        </template>
+      </el-table-column>
+      <el-table-column width="300" prop="title" label="标题" show-overflow-tooltip header-align="center" align="center">
+      </el-table-column>
+      <el-table-column prop="type.name" label="类型" show-overflow-tooltip
+                       header-align="center"
+                       align="center"
+                       column-key="type"
+                       :filters="[{text: '新闻', value: '0'}, {text: '视频', value: '1'}]">
+      </el-table-column>
+      <el-table-column prop="status.name" label="状态" show-overflow-tooltip
+                       header-align="center"
+                       align="center"
+                       column-key="status"
+                       :filters="[{text: '新建', value: '0'}, {text: '未审核', value: '1'}, {text: '已审核', value: '2'}, {text: '发布', value: '3'}, {text: '删除', value: '4'}]">
+      </el-table-column>
+      <el-table-column prop="goodsPrice" label="轮播" show-overflow-tooltip
+                       header-align="center"
+                       align="center"
+                       column-key="banner"
+                       :filters="[{text: '否', value: '0'}, {text: '是', value: '1'}]">
+        <template slot-scope="scope">
+          <p>{{scope.row.banner === 1 ? '是':'否'}}</p>
+        </template>
+      </el-table-column>
+      <el-table-column sortable prop="createTime" width="150px" label="创建时间" show-overflow-tooltip header-align="center"
+                       align="center">
+        <template slot-scope="scope">
+          <div>{{scope.row.createTime|timestampToTime}}</div>
+        </template>
+      </el-table-column>
+      <el-table-column prop="createBy" label="创建人" show-overflow-tooltip header-align="center" align="center">
+      </el-table-column>
+      <el-table-column sortable prop="publishTime" width="150px" label="发布时间" show-overflow-tooltip
+                       header-align="center"
+                       align="center">
+        <template slot-scope="scope">
+          <div>{{scope.row.publishTime|timestampToTime}}</div>
+        </template>
+      </el-table-column>
+      <el-table-column prop="publishBy" label="发布人" show-overflow-tooltip header-align="center" align="center">
+      </el-table-column>
+      <el-table-column prop="columnNames" label="发布栏目" show-overflow-tooltip header-align="center" align="center">
+      </el-table-column>
+      <el-table-column fixed="right" align="center" label="操作" width="320px" header-align="center">
+        <template slot-scope="scope">
+          <el-button size="mini" v-has="'admin:news:amend'" @click="journaDetails(scope.row)">编辑</el-button>
+          <el-button size="mini" v-has="'admin:news:delete'" type="danger" @click="deleteJourna(scope.row)">删除
+          </el-button>
+          <el-button size="mini" v-has="'admin:news:setCarousel'" @click="setSlideshow(scope.row)">{{scope.row.banner
+            === 1 ?'取消轮播':'设置轮播'}}
+          </el-button>
+          <el-button size="mini" @click="particulars(scope.row)">详情</el-button>
+        </template>
+      </el-table-column>
+    </el-table>
+
+    <!--弹框-->
+    <el-dialog
+      title="提示"
+      :visible.sync="centerDialogVisible"
+      :before-close="handleClose"
+      width="40%"
+      center>
+      <el-steps :active="active" finish-status="success">
+        <el-step title="创建"></el-step>
+        <el-step title="审核"></el-step>
+        <el-step title="发布"></el-step>
+      </el-steps>
+      <div v-if="isShow">
+        <el-form :model="form" :rules="rules" ref="form" label-width="100px">
+          <el-form-item label="封面图" prop="journalismImg">
+            <el-upload
+              class="dialog-style"
+              action="fakeaction"
+              accept=".png,.jpg"
+              list-type="picture-card"
+              :show-file-list="false"
+              :http-request="journalismImgUpload">
+              <template v-if="form.journalismImg !== ''">
+                <img class="img-stayle" :src="form.journalismImg.url" alt="">
+              </template>
+              <template v-else>
+                <i v-show="isJournalismImg" class="el-icon-plus"></i>
+                <el-progress type="circle" :percentage="journalismImgPercent" v-show="!isJournalismImg"></el-progress>
+              </template>
+            </el-upload>
+          </el-form-item>
+          <el-form-item label="视频" v-if="isVideoNews === 1" prop="journalismVideo">
+            <el-upload
+              class="dialog-style"
+              action="fakeaction"
+              accept=".mp4"
+              list-type="picture-card"
+              :show-file-list="false"
+              :http-request="videoUpload">
+              <template v-if="form.journalismVideo !== ''">
+                <video class="img-stayle" muted="true" :src="form.journalismVideo.url" controls="controls"
+                       autoplay="autoplay">
+                </video>
+              </template>
+              <template v-else>
+                <i v-show="isJournalismVideo" class="el-icon-plus"></i>
+                <el-progress type="circle" :percentage="journalismVideoPercent"
+                             v-show="!isJournalismVideo"></el-progress>
+              </template>
+            </el-upload>
+          </el-form-item>
+          <el-form-item label="标题" prop="title">
+            <el-input v-model="form.title" autocomplete="off"></el-input>
+          </el-form-item>
+          <el-form-item label="摘要" prop="summary" v-if="isVideoNews === 0">
+            <el-input v-model="form.summary" autocomplete="off"></el-input>
+          </el-form-item>
+          <el-form-item label="来源/作者" prop="author">
+            <el-input v-model="form.author" autocomplete="off"></el-input>
+          </el-form-item>
+          <div v-if="isVideoNews === 0">
+            <quill-editor v-model="form.cnt"
+                          ref="myTextEditor"
+                          :options="editorOption">
+            </quill-editor>
+            <el-upload class="avatar-uploader quill-img" name="file"
+                       action="123"
+                       :show-file-list="false"
+                       :on-success="quillImgSuccess"
+                       :before-upload="quillImgBefore"
+                       :http-request="quillImgSuccess"
+                       accept='.jpg,.jpeg,.png,.gif'>
+            </el-upload>
+          </div>
+        </el-form>
+      </div>
+      <div v-else>
+        <el-form :model="form" label-width="80px">
+          <el-form-item label="栏目">
+            <el-select
+              v-model="saveForm.upResName"
+              clearable
+              placeholder="请选择">
+              <el-option hidden key="upResId" :value="saveForm.upResName">
+              </el-option>
+              <el-tree
+                ref="tree"
+                :data="data"
+                :props="defaultProps"
+                node-key="id"
+                show-checkbox
+                @check-change="handleNodeClick">
+              </el-tree>
+            </el-select>
+          </el-form-item>
+          <el-form-item label="专题">
+            <div @click="specialClick">
+              <el-input
+                placeholder="请输入内容"
+                v-model="form.region"
+                suffix-icon="el-icon-arrow-down">
+              </el-input>
+            </div>
+          </el-form-item>
+        </el-form>
+      </div>
+      <span slot="footer" class="dialog-footer">
+           <el-button @click="centerDialogVisible = false">取 消</el-button>
+           <el-button v-has="'admin:news:amendSave'" v-show="newsStatus === '0' && isSave" type="primary"
+                      :loading="btnLoading" @click="saveNews">保存</el-button>
+          <el-button v-has="'admin:news:create'" v-show="newsStatus === ''" type="primary"
+                     :loading="btnLoading" @click="creationNews">创建</el-button>
+          <el-button v-has="'admin:news:submit'" v-show="newsStatus === '0'" type="primary"
+                     :loading="btnLoading" @click="submitNews">送审</el-button>
+          <el-button v-has="'admin:news:pass'" v-show="newsStatus === '1'" type="primary"
+                     :loading="btnLoading" @click="passNews">审核通过</el-button>
+          <el-button v-has="'admin:news:select'" v-show="newsStatus === '2'" type="primary" @click="selectColumnClick">选择栏目和专题</el-button>
+          <el-button v-has="'admin:news:issue'" v-show="newsStatus === '3'" type="primary"
+                     :loading="btnLoading" @click="issueNews">发布</el-button>
+          <el-button v-has="'admin:news:withdraw'" v-show="newsStatus === '3'" type="primary"
+                     :loading="btnLoading" @click="withdrawNews">撤回</el-button>
+  </span>
+    </el-dialog>
+
+    <!--详情抽屉-->
+    <el-drawer
+      title=""
+      :visible.sync="drawer">
+      <div style="text-align: center">
+        <div class="drwawe-x" v-if="drawerShow === 1">
+          <el-form ref="form" label-width="150px">
+            <el-form-item label="媒体类型：">
+              <div>{{newsDetails.type.name}}</div>
+            </el-form-item>
+            <el-form-item label="标题：">
+              <div>{{newsDetails.title}}</div>
+            </el-form-item>
+            <el-form-item label="描述：" class="wienqd">
+              <div v-html="newsDetails.contentHtml"></div>
+            </el-form-item>
+            <el-form-item label="浏览：">
+              <div></div>
+            </el-form-item>
+            <el-form-item label="封面图：">
+              <img :src="newsDetails.coverImg.content[0].url" alt="">
+            </el-form-item>
+            <el-form-item label="视频：" v-if="newsDetails.vdoUrl !== null">
+              <video class="img-stayle" muted="true" :src="newsDetails.vdoUrl.content[0].url" controls="controls"
+                     autoplay="autoplay">
+              </video>
+            </el-form-item>
+            <el-form-item label="作者：">
+              <div>{{newsDetails.author}}</div>
+            </el-form-item>
+            <el-form-item label="状态：">
+              <div v-if="drawer">{{newsDetails.status.name}}</div>
+            </el-form-item>
+            <el-form-item label="创建时间：">
+              <div>{{newsDetails.createTime}}</div>
+            </el-form-item>
+            <el-form-item label="发布时间">
+              <div>{{newsDetails.publishTime}}</div>
+            </el-form-item>
+          </el-form>
+        </div>
+        <div v-else-if="drawerShow === 2">
+          <!--列表-->
+          <el-table size="small" :data="specialList" highlight-current-row border v-loading="loading"
+                    ref="dataTable" element-loading-text="拼命加载中" style="width: 100%;" @selection-change="specialChange">
+            <el-table-column
+              type="selection"
+              width="55"
+              align="center">
+            </el-table-column>
+            <el-table-column label="ID" align="center" type="index" width="60">
+            </el-table-column>
+            <el-table-column label="封面图" show-overflow-tooltip width="100" header-align="center" align="center">
+              <template slot-scope="scope">
+                <el-image
+                  @click="blowup(scope.row)"
+                  style="width: 100%; height: 100%"
+                  :src="scope.row.coverImg === null ?'':scope.row.coverImg.content[0].url"
+                  :preview-src-list="srcList">
+                </el-image>
+              </template>
+            </el-table-column>
+            <el-table-column prop="title" label="标题" show-overflow-tooltip header-align="center" align="center">
+            </el-table-column>
+            <el-table-column sortable prop="publishTime" label="发布时间" show-overflow-tooltip header-align="center"
+                             align="center">
+              <template slot-scope="scope">
+                <div>{{scope.row.publishTime|timestampToTime}}</div>
+              </template>
+            </el-table-column>
+          </el-table>
+          <el-button style="margin-top: 50px" type="primary" @click="SelectProject" round>选择</el-button>
+          <!-- 分页组件 -->
+          <Pagination v-bind:child-msg="drawerPageparm" @callFather="drawerpaginChange"></Pagination>
+        </div>
+      </div>
+    </el-drawer>
+
+    <!--裁剪-->
+    <clipping v-bind:child-msg="clippingData" ref="clipping" @clippingFather="clippingChange"></clipping>
+    <!-- 分页组件 -->
+    <Pagination v-bind:child-msg="pageparm" @callFather="paginChange"></Pagination>
+  </div>
+</template>
+
+<script>
+    import Pagination from '../../components/Pagination' // 分页组件
+    import Clipping from '../../components/clipping' // 图片裁剪组件
+
+    import {JournalismModules} from '../../api/journalismModule'
+
+    let journalismModules = new JournalismModules();
+
+    import {postOssContent, getFileData} from '../../common/oss.js'
+
+    export default {
+        components: {
+            Pagination,
+            Clipping
+        },
+        name: 'journalismList',
+        data() {
+            return {
+                journalismList: [], // 新闻列表数据
+                active: 0, //弹框步骤条
+                srcList: [], // 图片放大
+                loading: true, //是显示加载
+                centerDialogVisible: false,
+                formLabelWidth: '100px',
+                isVideoNews: null,
+                form: {
+                    title: '', // 标题
+                    summary: '', // 摘要
+                    author: '', // 来源/作者
+                    cnt: '', // 富文本
+                    region: '',
+                    journalismImg: '', // 封面图
+                    journalismVideo: '', // 视频
+                },
+                searchForm: {
+                    title: '', // 标题
+                    type: '', // 类型
+                    status: '', // 状态
+                    banner: '', // 轮播
+                    createBy: '', // 创建人
+                }, // 搜索
+                rules: {
+                    title: [
+                        {required: true, message: '请输入标题', trigger: 'blur'},
+                    ],
+                    summary: [
+                        {required: true, message: '请输入摘要', trigger: 'blur'},
+                    ],
+                    author: [
+                        {required: true, message: '请输入来源/作者', trigger: 'blur'},
+                    ],
+                    journalismImg: [
+                        {required: true, message: '请上传封面图', trigger: 'blur'},
+                    ],
+                    journalismVideo: [
+                        {required: true, message: '请上传视频', trigger: 'blur'},
+                    ],
+                },
+                newsStatus: '', // 新闻当前状态id
+                benText: '提交', // 弹框提交按钮
+                journalismID: '',
+                isShow: true, // 弹框内容切换
+                dialogImageUrl: '',
+                // 虚拟树形控件配合下拉框
+                saveForm: {
+                    upResId: '',
+                    upResName: '',
+                },
+                // 树形控件栏目内容
+                data: [],
+                defaultProps: {
+                    children: 'childrenMenuDto',
+                    label: 'name',
+                },
+                specialList: [], // 专题分页数据
+                content: '',
+                drawer: false,
+                // 分页参数
+                pageparm: {
+                    currentPage: 1,
+                    pageSize: 10,
+                    total: 0
+                },
+                multipleSelection: [], //新闻
+                selectColumn: [], // 栏目
+                specialSelection: [], // 专题
+                specialText: '', // 专选中题
+                specialID: [],
+                drawerShow: null,
+                newsDetails: [],
+                btnLoading: false,
+                isSave: false, // 是否显示保存按钮
+                journalismImgPercent: 0, // 上传图片进度条
+                isJournalismImg: true, // 上传成功以后展示
+                journalismVideoPercent: 0, // 上传视频进度条
+                isJournalismVideo: true, // 上传视频成功以后展示
+                // 分页参数
+                drawerPageparm: {
+                    currentPage: 1,
+                    pageSize: 10,
+                    total: 0
+                },
+                clippingData: {
+                    width: 640,
+                    height: 360,
+                    file: '',
+                    fixedNumber: [16, 9]
+                }, // 裁剪数据
+                editorOption: {
+                    placeholder: 'Please enter it here...',
+                    modules: {
+                        toolbar: {
+                            container: [
+                                ['bold', 'italic', 'underline', 'strike'],// 加粗，斜体，下划线，删除线
+                                ['blockquote'],// 引用
+                                [{'header': 1}, {'header': 2}],// 标题，键值对的形式；1、2表示字体大小
+                                [{'list': 'ordered'}, {'list': 'bullet'}],//列表
+                                [{'indent': '-1'}, {'indent': '+1'}],// 缩进
+                                [{'direction': 'rtl'}],// 文本方向
+                                [{'size': ['small', false, 'large', 'huge']}],// 字体大小
+                                [{'header': [1, 2, 3, 4, 5, 6, false]}],//几级标题
+                                [{'color': []}, {'background': []}],// 字体颜色，字体背景颜色
+                                [{'font': []}],//字体
+                                [{'align': []}],//对齐方式
+                                ['clean'],//清除字体样式
+                                ['image']//上传图片、上传视频
+                            ],
+                            handlers: {
+                                'image': function (val) {
+                                    if (val) {
+                                        console.log(document.querySelector('.quill-img input'))
+                                        document.querySelector('.quill-img input').click()
+                                    } else {
+                                        this.quill.format('image', false);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+            }
+        },
+
+
+        created() {
+            // 获取新闻列表数据
+            this.getJournalismList()
+        },
+
+
+        methods: {
+
+
+            // 富文本编辑框图片上传
+            quillImgSuccess(file) {
+
+
+                // 获取富文本组件实例
+                let quill = this.$refs.myTextEditor.quill;
+
+                var that = this;
+                let _URL = window.URL || window.webkitURL;
+                var _url = _URL.createObjectURL(file.file);
+                postOssContent(file, function sss(result) {
+                    // console.log(result)
+                }, function callBack(fileData) {
+                    getFileData(_url, file.file.type, fileData, function re(result) {
+                        that.img = result
+                        // console.log(result)
+                        let length = quill.getSelection().index;
+                        // 插入图片  res.data为服务器返回的图片地址
+                        // console.log(quill.insertEmbed)
+                        quill.insertEmbed(length, 'image', result.url);// 这里的url是图片的访问路径不是真实物理路径
+                        // "alt": "图片说明",
+                        quill.formatText(length, 1, {
+                            "width": result.fileWidth,
+                            "height": result.fileHeight
+                        });
+                        // 调整光标到最后
+                        quill.setSelection(length + 1)
+                    })
+                })
+            },
+
+            quillImgBefore(file) {
+
+                console.log(file)
+                const img = new Image();
+                console.log(img.width)
+
+                let fileType = file.type;
+                if (fileType === 'image/jpeg' || fileType === 'image/png' || fileType === 'image/gif') {
+                    return true;
+                } else {
+                    this.$message.error('请插入图片类型文件(jpg/jpeg/png/fig)');
+                    return false;
+                }
+            },
+
+            paginChange(data) {
+                // 分页参数
+                this.pageparm.currentPage = data.currentPage;
+                this.pageparm.pageSize = data.pageSize;
+                // 查询后台用户列表
+                this.searchClick()
+            },
+
+            // 裁剪组件
+            clippingChange(data) {
+                this.journalismImgPercent = data.uploadPercent; // 上传图片进度条
+                this.isJournalismImg = data.isUpload; // 上传成功以后展示
+                this.form.journalismImg = data.uploadImg; // 上传成功以后返回值
+            },
+
+            // 上传图片
+            journalismImgUpload(file) {
+                if (file.file.type !== 'image/jpeg' && file.file.type !== 'image/png') {
+                    this.$message.error('上传图片格式不对!');
+                    return
+                }
+                this.isJournalismImg = false;
+                this.clippingData.file = file;
+                let _URL = window.URL || window.webkitURL;
+                var _url = _URL.createObjectURL(file.file);
+                // 上传成功后将图片地址赋值给裁剪框显示图片
+                this.$nextTick(() => {
+                    this.$refs.clipping.receive(_url)
+                })
+            },
+
+            // 上传视频
+            videoUpload(file) {
+                this.journalismVideoPercent = 0; // 上传图片进度条
+                this.isJournalismVideo = true; // 上传成功以后展示
+                this.form.journalismVideo = ''; // 上传成功以后返回值
+
+                if (file.file.type !== 'video/mp4') {
+                    this.$message.error('上传图片格式不对!');
+                    return
+                }
+
+                this.isJournalismVideo = false;
+                var that = this;
+                let _URL = window.URL || window.webkitURL;
+                var _url = _URL.createObjectURL(file.file);
+
+                //console.log(123)
+                postOssContent(file, function sss(result) {
+                    that.journalismVideoPercent = result
+                }, function callBack(fileData) {
+                    getFileData(_url, file.file.type, fileData, function re(result) {
+                        that.form.journalismVideo = result
+                        // console.log(result)
+                    })
+                })
+            },
+
+            // 图片放大
+            blowup(scope) {
+                this.srcList = [];
+                this.srcList.push(scope.coverImg.content[0].url)
+            },
+
+            // 获取新闻列表数据
+            getJournalismList() {
+                this.searchForm.title = '';
+                this.searchForm.type = '';
+                this.searchForm.status = '';
+                this.searchForm.banner = '';
+                this.searchForm.createBy = '';
+                let data = {
+                    pageTools: {
+                        limit: this.pageparm.pageSize,
+                        page: this.pageparm.currentPage
+                    },
+                    queryType: '1',
+                };
+                journalismModules.getJournalismList(
+                    data
+                ).then(res => {
+                    this.journalismList = res.data;
+                    this.pageparm.total = res.count
+                    this.loading = false
+                })
+            },
+
+            videoNews(val) {
+                // val=0新闻，val=2视频
+                if (val === 0) {
+                    this.isVideoNews = 0
+                } else if (val === 2) {
+                    this.isVideoNews = 1
+                }
+                this.isSave = false; // 是否显示保存按钮
+                this.centerDialogVisible = true
+            },
+
+            // 创建新闻
+            creationNews() {
+                this.$refs.form.validate((valid) => {
+                        if (valid) {
+                            this.btnLoading = true
+                            let data = {
+                                coverImg: {
+                                    content: [
+                                        this.form.journalismImg
+                                    ],
+                                }, //封面
+                                vdoUrl: this.isVideoNews === 1 ? {
+                                    content: [
+                                        this.form.journalismVideo
+                                    ]
+                                } : undefined, // 视频
+                                author: this.form.author,
+                                summary: this.form.summary === '' ? undefined : this.form.summary,
+                                title: this.form.title,
+                                type: this.isVideoNews,
+                                contentHtml: this.form.cnt === '' ? undefined : this.form.cnt,
+                                contentJson: this.form.cnt === '' ? undefined : JSON.stringify(this.$html2json(this.form.cnt)),
+                            }
+
+                            journalismModules.addJournalism(
+                                data
+                            ).then(res => {
+                                // console.log(res)
+                                if (res.ok) {
+                                    // 获取新闻列表数据
+                                    this.searchClick()
+                                    this.newsStatus = '0';
+                                    this.btnLoading = false
+                                    this.active = 1;
+                                    this.journalismID = res.data.id;
+                                    this.$message({
+                                        message: '创建成功',
+                                        type: 'success'
+                                    });
+                                }
+                            });
+                        } else {
+                            this.$message.error('请输入完整信息');
+                        }
+                    }
+                );
+            },
+
+            // 保存新闻
+            saveNews() {
+                this.$refs.form.validate((valid) => {
+                    if (valid) {
+                        this.btnLoading = true
+                        let data = {
+                                coverImg: {
+                                    content: [
+                                        this.form.journalismImg
+                                    ],
+                                }, //封面
+                                vdoUrl: this.isVideoNews === 1 ? {
+                                    content: [
+                                        this.form.journalismVideo
+                                    ]
+                                } : undefined, // 视频
+                                id: this.journalismID, // id
+                                author: this.form.author, // 作者
+                                summary: this.form.summary === '' ? undefined : this.form.summary, // 摘要
+                                title: this.form.title, // 标题
+                                type: this.isVideoNews, // 类型
+                                contentHtml: this.form.cnt === null ? undefined : this.form.cnt, // 富文本
+                                contentJson: this.form.cnt === null ? undefined : JSON.stringify(this.$html2json(this.form.cnt)), //富文本
+                            }
+                        ;
+                        journalismModules.amendJournalism(
+                            data
+                        ).then(res => {
+                            // console.log(res)
+                            if (res.ok) {
+                                // 获取新闻列表数据
+                                this.searchClick();
+                                this.btnLoading = false
+                                this.$message({
+                                    message: '保存修改成功',
+                                    type: 'success'
+                                });
+                            }
+                        });
+                    } else {
+                        this.$message.error('请输入完整信息');
+                    }
+                });
+            },
+
+            // 送审新闻
+            submitNews() {
+                this.$refs.form.validate((valid) => {
+                    if (valid) {
+                        this.btnLoading = true
+                        let data = {
+                            id: this.journalismID,
+                        }
+                        journalismModules.fulfillJournalism(
+                            data
+                        ).then(res => {
+                            this.newsStatus = '1'
+                            this.btnLoading = false
+                            // 获取新闻列表数据
+                            this.searchClick()
+                            this.$message({
+                                message: '送审成功',
+                                type: 'success'
+                            });
+                        })
+                    } else {
+                        this.$message.error('请输入完整信息');
+                    }
+                })
+            },
+
+            // 审核新闻
+            passNews() {
+                this.$refs.form.validate((valid) => {
+                    if (valid) {
+                        this.btnLoading = true
+                        let data = {
+                            id: this.journalismID
+                        };
+                        journalismModules.auditJournalism(
+                            data
+                        ).then(res => {
+                            this.newsStatus = '2'
+                            this.active = 2;
+                            this.btnLoading = false
+                            // 获取新闻列表数据
+                            this.searchClick()
+                            this.$message({
+                                message: '审核成功',
+                                type: 'success'
+                            });
+                        })
+                    } else {
+                        this.$message.error('请输入完整信息');
+                    }
+                })
+            },
+
+            // 选择栏目和专题
+            selectColumnClick() {
+                this.newsStatus = '3';
+                this.isShow = false;
+                this.getColumnZtree()
+            },
+
+            // 发布新闻
+            issueNews() {
+                this.btnLoading = true
+                let data = {
+                    newsId: this.journalismID,
+                    colunmIds: this.saveForm.upResId,
+                    specialIds: this.specialID.join(','),
+                }
+                journalismModules.issueJourna(
+                    data
+                ).then(res => {
+                    if (res.ok) {
+                        this.btnLoading = false
+                        this.searchClick();
+                        this.centerDialogVisible = false
+                        this.$message({
+                            message: '发布成功',
+                            type: 'success'
+                        });
+                    }
+                })
+            },
+
+            // 撤回新闻
+            withdrawNews() {
+                this.btnLoading = true
+                let data = {
+                    id: this.journalismID
+                };
+                journalismModules.withdrawAuditJournalism(
+                    data
+                ).then(res => {
+                    this.btnLoading = false
+                    // 获取新闻列表数据
+                    this.searchClick()
+                    this.isShow = true;
+                    this.active = 0;
+                    this.journaDetails(this.journalismID)
+                })
+            },
+
+            // 设置轮播/取消轮播图
+            setSlideshow(scope) {
+                let data = {
+                    id: scope.id,
+                    banner: scope.banner === 1 ? 0 : 1,
+                };
+                journalismModules.setSlideshow(
+                    data
+                ).then(res => {
+                    console.log(res)
+                    if (res.ok) {
+                        // 获取新闻列表数据
+                        this.getJournalismList()
+                        this.$message({
+                            message: '设置成功',
+                            type: 'success'
+                        });
+                    } else {
+                        this.$message.error(res.msg);
+                    }
+                })
+            },
+
+            // 删除新闻
+            deleteJourna(scope) {
+                this.$confirm('此操作将永久删除该用户, 是否继续?', '提示', {
+                    confirmButtonText: '确定',
+                    cancelButtonText: '取消',
+                    type: 'warning'
+                }).then(() => {
+                    let data = {
+                        id: scope.id
+                    };
+                    journalismModules.deleteJourna(
+                        data
+                    ).then(res => {
+                        // 获取新闻列表数据
+                        this.searchClick()
+                        this.$message({
+                            type: 'success',
+                            message: '删除成功!'
+                        });
+                    })
+                }).catch(() => {
+                    this.$message({
+                        type: 'info',
+                        message: '已取消删除'
+                    });
+                });
+            },
+
+            // 查询栏目 用于ztree
+            getColumnZtree() {
+                let data = {
+                    newsId: this.journalismID
+                }
+                journalismModules.getColumnZtree(
+                    data
+                ).then(res => {
+                    // console.log(res)
+                    this.data = res.data
+                    // console.log(this.testFun(res))
+                    this.$nextTick(() => {
+                        this.$refs.tree.setCheckedKeys(this.saveForm.upResId.split(','));
+                    });
+                })
+            },
+
+            // 获取新闻选中的专题
+            getJournaInSpecial() {
+                let data = {
+                    newsId: this.journalismID
+                }
+                journalismModules.getJournaInSpecial(
+                    data
+                ).then(res => {
+                    // console.log(res)
+                    if (res.ok) {
+                        let spName = [];
+                        this.specialSelection = [];
+                        for (var i = 0; i < res.data.length; i++) {
+                            this.specialSelection.push(res.data[i].specialId);
+                            spName.push(res.data[i].specialName)
+                        }
+
+                        if (spName.length !== 0) {
+                            this.form.region = spName.join(',')
+                        }
+                    }
+                })
+            },
+
+
+            specialClick() {
+                this.drawerShow = 2
+                this.getSpecialList()
+                this.drawer = true
+            },
+
+            // 抽屉分页
+            drawerpaginChange(data) {
+                // 分页参数
+                this.drawerPageparm.currentPage = data.currentPage;
+                this.drawerPageparm.pageSize = data.pageSize;
+                // 查询后台用户列表
+                this.getSpecialList()
+            },
+
+            // 获取新闻列表数据
+            getSpecialList() {
+                this.loading = true
+                let data = {
+                    pageTools: {
+                        limit: this.drawerPageparm.pageSize,
+                        page: this.drawerPageparm.currentPage
+                    },
+                    type: "2",
+                };
+                journalismModules.getJournalismList(
+                    data
+                ).then(res => {
+                    this.specialList = res.data;
+                    this.loading = false
+                    if (this.specialID.length !== 0) {
+                        this.specialSelection = this.specialID
+                    }
+                    this.$nextTick(() => {
+                        this.specialList.forEach(row => {
+                            // console.log(row.id)
+                            if (this.specialSelection.indexOf(row.id) >= 0) {
+                                this.$refs.dataTable.toggleRowSelection(row, true);
+                            }
+                        })
+                    });
+                    this.drawerPageparm.total = res.count
+                })
+            },
+
+            specialChange(val) {
+                this.specialText = [];
+                this.specialID = [];
+                for (var i = 0; i < val.length; i++) {
+                    this.specialText.push(val[i].title);
+                    this.specialID.push(val[i].id)
+                }
+
+            },
+
+            // 选择专题按钮
+            SelectProject() {
+                this.drawer = false;
+                this.form.region = this.specialText.join(',')
+            },
+
+            // 新闻详情修改
+            journaDetails(scope) {
+                // console.log(scope)
+                this.journalismID = scope.id === undefined ? scope : scope.id;
+                let data = {
+                    id: this.journalismID
+                };
+                journalismModules.journaDetails(
+                    data
+                ).then(res => {
+                    // console.log(res);
+                    if (res.ok) {
+                        this.isVideoNews = res.data.type.value;
+                        this.isShow = true;
+                        this.isSave = true;
+                        if (res.data.status.value === 0) {
+                            this.active = 1;
+                            this.newsStatus = '0';
+                        } else if (res.data.status.value === 1) {
+                            this.active = 1;
+                            this.newsStatus = '1';
+                        } else if (res.data.status.value === 2) {
+                            this.active = 2;
+                            this.newsStatus = '2';
+                        } else if (res.data.status.value === 3) {
+                            this.active = 3;
+                            this.isShow = false;
+                            this.newsStatus = '3';
+                            // console.log(res.data.columnId)
+                            this.saveForm.upResId = res.data.columnId;
+                            this.saveForm.upResName = res.data.columnId;
+                            // 查询栏目 用于ztree
+                            this.getColumnZtree()
+                            // 获取新闻选中的专题
+                            this.getJournaInSpecial()
+
+                        }
+                        this.centerDialogVisible = true; // 弹框
+                        this.journalismID = res.data.id; // 新闻id
+                        this.form.journalismImg = res.data.coverImg.content[0]; // 封面图
+                        this.form.journalismVideo = res.data.vdoUrl === null ? '' : res.data.vdoUrl.content[0]; // 视频
+                        this.form.title = res.data.title; // 标题
+                        this.form.summary = res.data.summary; // 摘要
+                        this.form.author = res.data.author; // 作者
+                        this.form.cnt = res.data.contentHtml; // 富文本
+                    }
+                })
+            },
+
+            // 新建 0   问审核 1  已审核2  发布 3
+
+            // 新闻详情
+            particulars(scope) {
+                let data = {
+                    id: scope.id
+                }
+                journalismModules.journaDetails(
+                    data
+                ).then(res => {
+                    console.log(res.data)
+                    this.drawerShow = 1;
+                    this.drawer = true;
+                    this.newsDetails = res.data
+                })
+            },
+
+            // 节点点击事件
+            handleNodeClick() {
+                let data = this.$refs.tree.getHalfCheckedNodes().concat(this.$refs.tree.getCheckedNodes())
+                let dataArrName = [];
+                let dataArrID = [];
+                for (var i = 0; i < data.length; i++) {
+                    dataArrName.push(data[i].name);
+                    dataArrID.push(data[i].id)
+                }
+                this.saveForm.upResName = dataArrName.join(',');
+                this.saveForm.upResId = dataArrID.join(',')
+            },
+
+            handleClose(done) {
+                this.$confirm('确认关闭？')
+                    .then(_ => {
+                        done();
+                        this.newsStatus = '';
+                        this.form.title = '';
+                        this.form.summary = '';
+                        this.form.author = '';
+                        this.form.cnt = '';
+                        this.form.region = '';
+                        this.isShow = true; // 弹框内容切换
+                        this.form.journalismImg = ''; // 封面图
+                        this.form.journalismVideo = ''; // 视频
+                        this.journalismImgPercent = 0; // 上传图片进度条
+                        this.isJournalismImg = true; // 上传成功以后展示
+                        this.journalismVideoPercent = 0; // 上传视频进度条
+                        this.isJournalismVideo = true; // 上传视频成功以后展示
+                        this.active = 0;
+                        this.specialID = []
+                    })
+                    .catch(_ => {
+                    });
+            },
+
+            // 筛选
+            filterChange(filters) {
+                let data = {
+                    pageTools: {
+                        limit: this.pageparm.pageSize,
+                        page: this.pageparm.currentPage
+                    },
+                    type: filters.type === undefined ? undefined : filters.type[0], // 类型
+                    banner: filters.banner === undefined ? undefined : filters.banner[0], //轮播
+                    status: filters.status === undefined ? undefined : filters.status[0], // 状态
+                };
+                journalismModules.getJournalismList(
+                    data
+                ).then(res => {
+                    this.journalismList = res.data;
+                    this.pageparm.total = res.count
+                    this.loading = false
+                })
+            },
+
+            // 搜索
+            searchClick() {
+                let data = {
+                        pageTools: {
+                            limit: this.pageparm.pageSize,
+                            page: this.pageparm.currentPage
+                        },
+                        title: this.searchForm.title === '' ? undefined : this.searchForm.title,
+                        type: this.searchForm.type === '' ? undefined : this.searchForm.type,
+                        banner: this.searchForm.banner === '' ? undefined : this.searchForm.banner,
+                        status: this.searchForm.status === '' ? undefined : this.searchForm.status,
+                        createBy: this.searchForm.createBy === '' ? undefined : this.searchForm.createBy,
+                    }
+                ;
+                journalismModules.getJournalismList(
+                    data
+                ).then(res => {
+                    this.journalismList = res.data;
+                    this.pageparm.total = res.count
+                    this.loading = false
+                })
+            },
+        }
+    }
+</script>
+
+<style scoped>
+  .journalism-list .drwawe-x div {
+    text-align: left;
+  }
+
+  .journalism-list .drwawe-x img {
+    width: 300px;
+    height: 200px;
+    vertical-align: middle;
+  }
+
+  .journalism-list .drwawe-x video {
+    width: 300px;
+    height: 200px;
+    vertical-align: middle;
+  }
+
+
+  .journalism-list /deep/ .el-drawer__body {
+    overflow-y: scroll;
+    margin-bottom: 50px;
+  }
+
+  .journalism-list .el-drawer__wrapper .el-drawer__body .el-form .el-form-item {
+    margin-bottom: 0;
+  }
+
+  .drwawe-x /deep/ .wienqd img {
+    width: 320px;
+    height: 200px;
+  }
+
+</style>
